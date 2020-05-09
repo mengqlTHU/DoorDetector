@@ -1,1 +1,0 @@
-python detection.py --image test/test4.jpg --classes door.names --config yolo-door.cfg --weights yolo-door.weights

@@ -1,0 +1,1 @@
+python detection_video.py --video webcam --skip 16 --classes door.names --config yolo-door.cfg --weights yolo-door.weights
