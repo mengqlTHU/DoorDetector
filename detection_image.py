@@ -8,6 +8,9 @@
 import cv2
 import argparse
 import numpy as np
+import os
+import signal
+from math import ceil
 
 ap = argparse.ArgumentParser()
 ap.add_argument('-i', '--image', required=True,
@@ -30,6 +33,29 @@ def get_output_layers(net):
     return output_layers
 
 
+def split_image(image):
+    width = image.shape[1]
+    height = image.shape[0]
+    result = []
+    if width > height:
+        n_image = ceil(width/height*2)
+        left = 0
+        for i in range(n_image):
+            if left + height > width:
+                left = width - height
+            result.append((left, 0, height, height))
+            left += int(height/2)
+    else:
+        n_image = ceil(height/width*2)
+        top = 0
+        for i in range(n_image):
+            if top + width > height:
+                top = height - width
+            result.append((0, top, width, width))
+            top += int(width/2)
+    return result
+
+
 def draw_prediction(img, class_id, confidence, x, y, x_plus_w, y_plus_h):
 
     label = str(classes[class_id])
@@ -45,7 +71,7 @@ image = cv2.imread(args.image)
 
 Width = image.shape[1]
 Height = image.shape[0]
-scale = 0.00392
+scale = 0.00392 # this is 1/255
 
 classes = None
 
@@ -86,6 +112,31 @@ for out in outs:
             boxes.append([x, y, w, h])
 
 
+#After detecting the whole image, try to crop square subimage and do further detection
+sub_image_list = split_image(image)
+for s in sub_image_list:
+    sub_image = image[s[1]:s[1]+s[3], s[0]:s[0]+s[2]]
+    blob = cv2.dnn.blobFromImage(sub_image, scale, (416,416), (0,0,0), True, crop=False)
+    net.setInput(blob)
+    outs = net.forward(get_output_layers(net))
+
+    for out in outs:
+        for detection in out:
+            scores = detection[5:]
+            class_id = np.argmax(scores)
+            confidence = scores[class_id]
+            if confidence > 0.5:
+                center_x = int(detection[0] * s[2]) + s[0]
+                center_y = int(detection[1] * s[3]) + s[1]
+                w = int(detection[2] * s[2])
+                h = int(detection[3] * s[3])
+                x = center_x - w / 2
+                y = center_y - h / 2
+                class_ids.append(class_id)
+                confidences.append(float(confidence))
+                boxes.append([x, y, w, h])
+
+
 indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
 
 for i in indices:
@@ -102,3 +153,4 @@ cv2.waitKey()
     
 cv2.imwrite("object-detection.jpg", image)
 cv2.destroyAllWindows()
+os.kill (os.getpid (), signal.SIGTERM)

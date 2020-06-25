@@ -2,4 +2,5 @@
 *.mp4
 *.avi
 .vscode
+object-detection.jpg
 __pycache__
